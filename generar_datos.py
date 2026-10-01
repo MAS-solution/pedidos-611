@@ -19,7 +19,7 @@ import psycopg2
 TZ_AR = timezone(timedelta(hours=-3))
 
 # Codigos que no son mercaderia: adelantos, notas de credito, articulos varios (proveedor "611")
-# y las cajas de carton recuperadas.
+# las cajas de carton recuperadas y el material POP / exhibidores (codigos 1500...).
 EXCLUIR_PROV = ("611",)
 
 
@@ -47,6 +47,7 @@ def main():
         LEFT JOIN item_unidad iu ON iu.id = i.unidad_compra_id
         WHERE i.prov_codigo IS NOT NULL AND i.prov_codigo <> ALL(%s)
           AND i.descripcion NOT ILIKE '%%carton%%'
+          AND i.codigo NOT LIKE '1500%%'
         """,
         (list(EXCLUIR_PROV),),
     )
