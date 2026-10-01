@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedidos 611</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b2430;--mut:#667085;--bd:#e3e6eb;--ac:#1f6feb;--red:#c62828;--redbg:#fdecec;--amb:#b26a00;--ambbg:#fff4e0;--grn:#1e7d3a;--grnbg:#e7f5ec}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141a;--card:#171e27;--tx:#e3ecf7;--mut:#94a3b8;--bd:#263241;--ac:#58a6ff;--red:#ff7b72;--redbg:#3a1d1d;--amb:#f0b450;--ambbg:#3a2c12;--grn:#56d364;--grnbg:#14301d}}
+:root[data-theme="dark"]{--bg:#0f141a;--card:#171e27;--tx:#e3ecf7;--mut:#94a3b8;--bd:#263241;--ac:#58a6ff;--red:#ff7b72;--redbg:#3a1d1d;--amb:#f0b450;--ambbg:#3a2c12;--grn:#56d364;--grnbg:#14301d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:14px 16px;border-bottom:1px solid var(--bd);background:var(--card);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+h1{font-size:18px;margin:0}
+.mut{color:var(--mut);font-size:12px}
+main{max-width:1400px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.ctrls{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:flex-end}
+.ctrl label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px}
+input[type=number]{width:80px}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac)}
+button.sec{background:var(--bg);color:var(--tx);border-color:var(--bd)}
+.chk{display:inline-flex;gap:4px;align-items:center;margin-right:10px;font-size:13px}
+.alerts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+.al{border-radius:10px;padding:12px 14px;cursor:pointer;border:2px solid transparent}
+.al.on{border-color:currentColor}
+.al b{font-size:24px;display:block}
+.al.falta{background:var(--redbg);color:var(--red)}
+.al.crit{background:var(--ambbg);color:var(--amb)}
+.al.pedir{background:var(--grnbg);color:var(--grn)}
+.al.todo{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.warn{background:var(--ambbg);color:var(--amb);padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);font-size:12px;color:var(--mut);cursor:pointer;user-select:none}
+td.l,th.l{text-align:left}
+td.desc{white-space:normal;min-width:220px}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.t-falta{background:var(--redbg);color:var(--red)}.t-crit{background:var(--ambbg);color:var(--amb)}.t-pedir{background:var(--grnbg);color:var(--grn)}.t-ok{color:var(--mut)}
+td input{width:70px;text-align:right;padding:3px 6px}
+td input.ov{border-color:var(--ac);font-weight:600}
+.provs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 16px;margin-top:10px}
+.provs div{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+details summary{cursor:pointer;color:var(--ac);font-size:13px}
+#login{max-width:320px;margin:15vh auto;padding:16px}
+#login input{width:100%;margin-bottom:10px}
+.res{display:flex;flex-wrap:wrap;gap:8px 24px;font-size:13px;margin-bottom:8px}
+@media (max-width:640px){main{padding:12px}input[type=number]{width:64px}}
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h1 style="margin-bottom:12px">Pedidos 611</h1>
+  <input id="lu" placeholder="Usuario" autocomplete="username">
+  <input id="lp" type="password" placeholder="Clave" autocomplete="current-password">
+  <button style="width:100%" onclick="doLogin()">Entrar</button>
+  <div id="lerr" class="mut" style="color:var(--red);margin-top:8px"></div>
+</div>
+
+<div id="app" hidden>
+<header>
+  <h1>Pedidos 611 · Sugerido por venta y stock</h1>
+  <span class="mut" id="meta"></span>
+</header>
+<main>
+  <div class="card">
+    <div class="ctrls">
+      <div class="ctrl"><label>Promedio de venta</label>
+        <select id="modo">
+          <option value="7">Últimos 7 días</option>
+          <option value="14">Últimos 14 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="60">Últimos 60 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="n">Últimos N días…</option>
+          <option value="rango">Rango de fechas…</option>
+          <option value="anio">Mismo período año anterior (estacional)</option>
+        </select>
+      </div>
+      <div class="ctrl" id="c-n" hidden><label>N días</label><input type="number" id="ndias" min="1" value="21"></div>
+      <div class="ctrl" id="c-rango" hidden><label>Desde / hasta</label><input type="date" id="rdesde"> <input type="date" id="rhasta"></div>
+      <div class="ctrl" id="c-anio" hidden><label>Próximos días a proyectar · ajuste %</label><input type="number" id="adias" min="1" value="30"> <input type="number" id="acrec" value="0" step="1">%</div>
+      <div class="ctrl"><label>Días a reponer (cobertura)</label><input type="number" id="repo" min="0" value="15"></div>
+      <div class="ctrl"><label>Stock de depósitos</label><span id="deps"></span></div>
+    </div>
+    <details style="margin-top:12px"><summary>Demora de entrega por proveedor (días)</summary><div class="provs" id="provs"></div></details>
+  </div>
+
+  <div id="warn"></div>
+  <div class="alerts" id="alerts"></div>
+
+  <div class="card">
+    <div class="ctrls" style="margin-bottom:10px">
+      <div class="ctrl"><label>Proveedor</label><select id="fprov"></select></div>
+      <div class="ctrl"><label>Buscar</label><input id="fq" placeholder="código o descripción"></div>
+      <div class="ctrl"><button class="sec" onclick="limpiarAjustes()">Borrar ajustes manuales</button></div>
+      <div class="ctrl"><button onclick="exportar()">Descargar pedido (Excel)</button></div>
+    </div>
+    <div class="res" id="res"></div>
+    <div class="tw"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
+  </div>
+  <p class="mut">Venta neta = facturas − notas de crédito (en unidades). El promedio es por día corrido. Sugerido = promedio × (demora + días a reponer) − stock, redondeado a bultos de compra. Los días sin stock bajan el promedio (venta perdida), revisá los artículos que estuvieron en falta.</p>
+</main>
+</div>
+
+<script>
+// Login cosmetico: el repo es publico, los datos viajan igual en data.json.
+var USERS = { 'compras': 'Pedidos611!' };
+var AUTH_KEY = 'ped611_auth', CFG_KEY = 'ped611_cfg', OV_KEY = 'ped611_ov';
+function ls(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+function doLogin() {
+  var u = document.getElementById('lu').value.trim().toLowerCase(), p = document.getElementById('lp').value;
+  if (USERS[u] && USERS[u] === p) { try { sessionStorage.setItem(AUTH_KEY, '1'); } catch (e) {} entrar(); }
+  else document.getElementById('lerr').textContent = 'Usuario o clave incorrectos';
+}
+document.getElementById('lp').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+var authed = false; try { authed = sessionStorage.getItem(AUTH_KEY) === '1'; } catch (e) {}
+if (authed) entrar(); else document.getElementById('login').hidden = false;
+
+var D, DESDE, HASTA, NH, filtro = 'todo', orden = { k: 'cob', asc: true }, OV = ls(OV_KEY) || {};
+var DEMORA_DEF = { '100': 5 }, DEMORA_OTROS = 10;
+var CFG = Object.assign({ modo: '30', ndias: 21, repo: 15, adias: 30, acrec: 0, deps: ['0', '5'], demoras: {} }, ls(CFG_KEY) || {});
+
+function F0(n) { return (Math.round(n) || 0).toLocaleString('es-AR'); }
+function F1(n) { return (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+function dt(s) { var p = s.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
+function iso(d) { return d.toISOString().slice(0, 10); }
+function addD(d, n) { return new Date(d.getTime() + n * 864e5); }
+function dIdx(d) { return Math.round((d - DESDE) / 864e5); }
+function fmtF(s) { var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+function entrar() {
+  document.getElementById('login').hidden = true;
+  document.getElementById('app').hidden = false;
+  fetch('data.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(init);
+}
+
+function init(d) {
+  D = d; DESDE = dt(d.desde); HASTA = dt(d.hasta); NH = dIdx(HASTA) + 1;
+  document.getElementById('meta').textContent = 'Datos al ' + d.generado + ' · historial de venta ' + fmtF(d.desde) + ' → ' + fmtF(d.hasta);
+  var $ = function (id) { return document.getElementById(id); };
+  $('modo').value = CFG.modo; $('ndias').value = CFG.ndias; $('repo').value = CFG.repo; $('adias').value = CFG.adias; $('acrec').value = CFG.acrec;
+  $('rdesde').value = CFG.rdesde || d.desde; $('rhasta').value = CFG.rhasta || d.hasta;
+  $('rdesde').min = $('rhasta').min = d.desde; $('rdesde').max = $('rhasta').max = d.hasta;
+  // Depositos
+  $('deps').innerHTML = Object.keys(d.depositos).sort(function (a, b) { return a - b; }).map(function (k) {
+    return '<span class="chk"><input type="checkbox" value="' + k + '"' + (CFG.deps.indexOf(k) >= 0 ? ' checked' : '') + '>' + esc(d.depositos[k]) + '</span>';
+  }).join('');
+  // Demoras
+  var pk = Object.keys(d.proveedores).sort(function (a, b) { return d.proveedores[a].localeCompare(d.proveedores[b]); });
+  $('provs').innerHTML = pk.map(function (k) {
+    return '<div><span>' + esc(d.proveedores[k]) + '</span><input type="number" min="0" data-p="' + k + '" value="' + demora(k) + '"></div>';
+  }).join('');
+  $('fprov').innerHTML = '<option value="">Todos</option>' + pk.map(function (k) { return '<option value="' + k + '">' + esc(d.proveedores[k]) + '</option>'; }).join('');
+  if (CFG.fprov) $('fprov').value = CFG.fprov;
+  document.querySelectorAll('input,select').forEach(function (el) {
+    if (el.closest('#login')) return;
+    el.addEventListener(el.id === 'fq' ? 'input' : 'change', guardarYCalcular);
+  });
+  calcular();
+}
+
+function demora(p) { return CFG.demoras[p] != null ? CFG.demoras[p] : (DEMORA_DEF[p] != null ? DEMORA_DEF[p] : DEMORA_OTROS); }
+
+function guardarYCalcular() {
+  var $ = function (id) { return document.getElementById(id); };
+  CFG.modo = $('modo').value; CFG.ndias = +$('ndias').value || 1; CFG.repo = +$('repo').value || 0;
+  CFG.adias = +$('adias').value || 1; CFG.acrec = +$('acrec').value || 0;
+  CFG.rdesde = $('rdesde').value; CFG.rhasta = $('rhasta').value; CFG.fprov = $('fprov').value;
+  CFG.deps = [].map.call(document.querySelectorAll('#deps input:checked'), function (e) { return e.value; });
+  document.querySelectorAll('#provs input').forEach(function (e) { CFG.demoras[e.dataset.p] = +e.value || 0; });
+  ls(CFG_KEY, CFG);
+  calcular();
+}
+
+// Devuelve {ini, fin, dias, factor, nota} en indices del historial
+function ventana() {
+  var m = CFG.modo, ini, fin = NH - 1, factor = 1, nota = '';
+  document.getElementById('c-n').hidden = m !== 'n';
+  document.getElementById('c-rango').hidden = m !== 'rango';
+  document.getElementById('c-anio').hidden = m !== 'anio';
+  if (m === 'rango') {
+    ini = dIdx(dt(CFG.rdesde || D.desde)); fin = dIdx(dt(CFG.rhasta || D.hasta));
+    if (fin < ini) { var t = ini; ini = fin; fin = t; }
+  } else if (m === 'anio') {
+    // Proximos N dias, pero tomando la venta del mismo periodo hace 52 semanas
+    var hoy = addD(HASTA, 1);
+    ini = dIdx(addD(hoy, -364)); fin = ini + CFG.adias - 1; factor = 1 + CFG.acrec / 100;
+    nota = 'Estacional: se usa la venta del ' + fmtF(iso(addD(DESDE, ini))) + ' al ' + fmtF(iso(addD(DESDE, fin))) + (CFG.acrec ? ' con ajuste ' + CFG.acrec + '%' : '') + '.';
+  } else {
+    var n = m === 'n' ? CFG.ndias : +m; ini = fin - n + 1;
+  }
+  var pedidos = fin - ini + 1;
+  var iniR = Math.max(ini, 0), finR = Math.min(fin, NH - 1);
+  var dias = Math.max(finR - iniR + 1, 0);
+  var w = '';
+  if (dias === 0) w = 'No hay historial de venta para ese período (el detalle arranca el ' + fmtF(D.desde) + '). Elegí otra ventana.';
+  else if (dias < pedidos) w = 'Pediste ' + pedidos + ' días pero solo hay ' + dias + ' con historial (desde ' + fmtF(D.desde) + '): el promedio usa esos ' + dias + ' días.';
+  return { ini: iniR, fin: finR, dias: dias, factor: factor, nota: nota, warn: w };
+}
+
+function calcular() {
+  var w = ventana();
+  var wh = '';
+  if (w.warn) wh += '<div class="warn">' + w.warn + '</div>';
+  if (w.nota && w.dias) wh += '<div class="warn" style="background:var(--card);color:var(--mut);border:1px solid var(--bd)">' + w.nota + '</div>';
+  document.getElementById('warn').innerHTML = wh;
+
+  var fp = CFG.fprov || '', q = (document.getElementById('fq').value || '').toLowerCase();
+  var cnt = { falta: 0, crit: 0, pedir: 0, todo: 0 }, filas = [];
+  D.items.forEach(function (it) {
+    var tot = 0;
+    if (w.dias) for (var k in it.v) { var i = +k; if (i >= w.ini && i <= w.fin) tot += it.v[k]; }
+    var prom = w.dias ? Math.max(tot, 0) / w.dias * w.factor : 0;
+    var st = 0; CFG.deps.forEach(function (dp) { st += it.s[dp] || 0; });
+    var stc = Math.max(st, 0), lead = demora(it.p);
+    var cob = prom > 0 ? stc / prom : Infinity;
+    var nec = prom * (lead + CFG.repo) - stc;
+    var bSug = nec > 0 ? Math.ceil(nec / it.f) : 0;
+    var est = prom > 0 && stc <= 0 ? 'falta' : (prom > 0 && cob < lead ? 'crit' : (bSug > 0 ? 'pedir' : 'ok'));
+    if (prom <= 0 && stc <= 0) return; // sin venta ni stock: no aporta
+    var key = it.c, bFin = OV[key] != null ? OV[key] : bSug;
+    var r = { it: it, prom: prom, st: st, cob: cob, lead: lead, bSug: bSug, bFin: bFin, est: est, vt: tot };
+    if (fp && it.p !== fp) return;
+    if (q && (it.c + ' ' + it.d).toLowerCase().indexOf(q) < 0) return;
+    cnt.todo++; if (est === 'falta') cnt.falta++; if (est === 'crit') cnt.crit++; if (bFin > 0) cnt.pedir++;
+    filas.push(r);
+  });
+  document.getElementById('alerts').innerHTML =
+    al('falta', cnt.falta, 'En falta', 'stock en 0 y con venta') +
+    al('crit', cnt.crit, 'Críticos', 'se quedan sin stock antes de que llegue el pedido') +
+    al('pedir', cnt.pedir, 'A pedir', 'artículos con cantidad sugerida') +
+    al('todo', cnt.todo, 'Todos', 'artículos con venta o stock');
+  var vis = filas.filter(function (r) {
+    if (filtro === 'falta') return r.est === 'falta';
+    if (filtro === 'crit') return r.est === 'crit' || r.est === 'falta';
+    if (filtro === 'pedir') return r.bFin > 0;
+    return true;
+  });
+  vis.sort(cmp);
+  var totB = 0, totU = 0, provSet = {};
+  vis.forEach(function (r) { if (r.bFin > 0) { totB += r.bFin; totU += r.bFin * r.it.f; provSet[r.it.p] = 1; } });
+  document.getElementById('res').innerHTML = '<span><b>' + F0(vis.length) + '</b> artículos en vista</span><span>Pedido: <b>' + F0(totB) + '</b> bultos · ' + F0(totU) + ' unidades · ' + Object.keys(provSet).length + ' proveedor(es)</span><span class="mut">Promedio sobre ' + w.dias + ' días</span>';
+  pintar(vis);
+  window._vis = vis;
+}
+
+function al(k, n, t, s) { return '<div class="al ' + k + (filtro === k ? ' on' : '') + '" onclick="setFiltro(\'' + k + '\')"><b>' + F0(n) + '</b>' + t + '<div style="font-size:12px;opacity:.8">' + s + '</div></div>'; }
+function setFiltro(k) { filtro = k; calcular(); }
+
+var COLS = [
+  ['est', 'Estado', 'l'], ['c', 'Código', 'l'], ['d', 'Descripción', 'l'], ['p', 'Proveedor', 'l'],
+  ['st', 'Stock (u)'], ['prom', 'Venta/día (u)'], ['cob', 'Cobertura (días)'], ['lead', 'Demora'],
+  ['f', 'Bulto'], ['bSug', 'Sugerido (bultos)'], ['bFin', 'Pedir (bultos)'], ['uFin', 'Pedir (u)'], ['uc', 'Últ. compra']
+];
+var EORD = { falta: 0, crit: 1, pedir: 2, ok: 3 };
+function val(r, k) {
+  switch (k) {
+    case 'est': return EORD[r.est] * 1e6 + (isFinite(r.cob) ? r.cob : 1e5);
+    case 'c': case 'd': case 'f': case 'uc': return r.it[k] || '';
+    case 'p': return D.proveedores[r.it.p] || '';
+    case 'cob': return isFinite(r.cob) ? r.cob : 1e9;
+    case 'uFin': return r.bFin * r.it.f;
+    default: return r[k];
+  }
+}
+function cmp(a, b) { var x = val(a, orden.k), y = val(b, orden.k), s = orden.asc ? 1 : -1; return (x < y ? -1 : x > y ? 1 : 0) * s; }
+function ordenar(k) { if (orden.k === k) orden.asc = !orden.asc; else { orden.k = k; orden.asc = true; } calcular(); }
+
+var ETQ = { falta: ['t-falta', 'En falta'], crit: ['t-crit', 'Crítico'], pedir: ['t-pedir', 'Pedir'], ok: ['t-ok', 'OK'] };
+function pintar(vis) {
+  document.getElementById('thead').innerHTML = COLS.map(function (c) {
+    return '<th class="' + (c[2] || '') + '" onclick="ordenar(\'' + c[0] + '\')">' + c[1] + (orden.k === c[0] ? (orden.asc ? ' ▲' : ' ▼') : '') + '</th>';
+  }).join('');
+  var h = vis.slice(0, 1500).map(function (r) {
+    var e = ETQ[r.est], it = r.it, ov = OV[it.c] != null;
+    return '<tr><td class="l"><span class="tag ' + e[0] + '">' + e[1] + '</span></td><td class="l">' + esc(it.c) + '</td><td class="l desc">' + esc(it.d) +
+      '</td><td class="l">' + esc(D.proveedores[it.p] || it.p) + '</td><td>' + F0(r.st) + '</td><td>' + F1(r.prom) +
+      '</td><td>' + (isFinite(r.cob) ? F1(r.cob) : '—') + '</td><td>' + r.lead + '</td><td>' + esc(it.u) + ' x' + it.f +
+      '</td><td>' + F0(r.bSug) + '</td><td><input type="number" min="0" class="' + (ov ? 'ov' : '') + '" value="' + r.bFin + '" onchange="setOV(\'' + esc(it.c) + '\',this.value,' + r.bSug + ')"></td><td>' + F0(r.bFin * it.f) +
+      '</td><td>' + (it.uc ? fmtF(it.uc) : '—') + '</td></tr>';
+  }).join('');
+  document.getElementById('tbody').innerHTML = h || '<tr><td colspan="13" class="l mut">Sin artículos para este filtro.</td></tr>';
+}
+function setOV(c, v, sug) { v = Math.max(0, Math.round(+v || 0)); if (v === sug) delete OV[c]; else OV[c] = v; ls(OV_KEY, OV); calcular(); }
+function limpiarAjustes() { OV = {}; ls(OV_KEY, OV); calcular(); }
+
+function exportar() {
+  var rows = (window._vis || []).filter(function (r) { return r.bFin > 0; });
+  if (!rows.length) { document.getElementById('res').insertAdjacentHTML('beforeend', '<span style="color:var(--red)">No hay cantidades a pedir en la vista.</span>'); return; }
+  var wb = XLSX.utils.book_new(), porProv = {};
+  rows.forEach(function (r) { (porProv[r.it.p] = porProv[r.it.p] || []).push(r); });
+  Object.keys(porProv).forEach(function (p) {
+    var aoa = [['Código', 'Descripción', 'Unidad compra', 'Factor', 'Bultos', 'Unidades', 'Stock (u)', 'Venta/día (u)', 'Cobertura (días)', 'Estado']];
+    porProv[p].sort(function (a, b) { return a.it.d.localeCompare(b.it.d); }).forEach(function (r) {
+      aoa.push([r.it.c, r.it.d, r.it.u, r.it.f, r.bFin, r.bFin * r.it.f, Math.round(r.st), +r.prom.toFixed(1), isFinite(r.cob) ? +r.cob.toFixed(1) : '', ETQ[r.est][1]]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 7 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws, (D.proveedores[p] || p).replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 31));
+  });
+  XLSX.writeFile(wb, 'Pedido 611 ' + iso(new Date()) + '.xlsx');
+}
+</script>
+</body>
+</html>

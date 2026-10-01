@@ -1,0 +1,35 @@
+name: Actualizar datos de pedidos
+on:
+  schedule:
+    - cron: '0 * * * *'   # cada hora
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'generar_datos.py'
+concurrency:
+  group: pedidos-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install psycopg2-binary
+      - run: python generar_datos.py
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+      - run: |
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          git add data.json
+          git commit -m "Actualizar datos [skip ci]" || echo "Sin cambios"
+          git push
