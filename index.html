@@ -157,8 +157,6 @@ function init(d) {
   $('provs').innerHTML = pk.map(function (k) {
     return '<div><span>' + esc(d.proveedores[k]) + '</span><input type="number" min="0" data-p="' + k + '" value="' + demora(k) + '"></div>';
   }).join('');
-  $('fprov').innerHTML = '<option value="">Todos</option>' + pk.map(function (k) { return '<option value="' + k + '">' + esc(d.proveedores[k]) + '</option>'; }).join('');
-  if (CFG.fprov) $('fprov').value = CFG.fprov;
   document.querySelectorAll('input,select').forEach(function (el) {
     if (el.closest('#login')) return;
     el.addEventListener(el.id === 'fq' ? 'input' : 'change', guardarYCalcular);
@@ -214,7 +212,7 @@ function calcular() {
   document.getElementById('warn').innerHTML = wh;
 
   var fp = CFG.fprov || '', q = (document.getElementById('fq').value || '').toLowerCase();
-  var cnt = { falta: 0, crit: 0, pedir: 0, todo: 0 }, filas = [];
+  var cnt = { falta: 0, crit: 0, pedir: 0, todo: 0 }, todas = [];
   D.items.forEach(function (it) {
     var tot = 0;
     if (w.dias) for (var k in it.v) { var i = +k; if (i >= w.ini && i <= w.fin) tot += it.v[k]; }
@@ -229,22 +227,22 @@ function calcular() {
     if (prom <= 0 && stc <= 0) return; // sin venta ni stock: no aporta
     var key = it.c, bFin = OV[key] != null ? OV[key] : bSug;
     var r = { it: it, prom: prom, st: st, cob: cob, lead: lead, bRaw: bRaw, bSug: bSug, bFin: bFin, est: est, vt: tot };
-    if (fp && it.p !== fp) return;
     if (q && (it.c + ' ' + it.d).toLowerCase().indexOf(q) < 0) return;
-    cnt.todo++; if (est === 'falta') cnt.falta++; if (est === 'crit') cnt.crit++; if (bFin > 0) cnt.pedir++;
-    filas.push(r);
+    todas.push(r);
   });
+  // El combo de proveedores muestra solo los que tienen articulos en la tarjeta elegida
+  var provCnt = {};
+  todas.forEach(function (r) { if (enFiltro(r)) provCnt[r.it.p] = (provCnt[r.it.p] || 0) + 1; });
+  if (fp && !provCnt[fp]) { fp = CFG.fprov = ''; ls(CFG_KEY, CFG); }
+  pintarProvs(provCnt, fp);
+  var filas = todas.filter(function (r) { return !fp || r.it.p === fp; });
+  filas.forEach(function (r) { cnt.todo++; if (r.est === 'falta') cnt.falta++; if (r.est === 'crit') cnt.crit++; if (r.bFin > 0) cnt.pedir++; });
   document.getElementById('alerts').innerHTML =
     al('falta', cnt.falta, 'En falta', 'stock en 0 y con venta') +
     al('crit', cnt.crit, 'Críticos', 'se quedan sin stock antes de que llegue el pedido') +
     al('pedir', cnt.pedir, 'A pedir', 'artículos con cantidad sugerida') +
     al('todo', cnt.todo, 'Todos', 'artículos con venta o stock');
-  var vis = filas.filter(function (r) {
-    if (filtro === 'falta') return r.est === 'falta';
-    if (filtro === 'crit') return r.est === 'crit' || r.est === 'falta';
-    if (filtro === 'pedir') return r.bFin > 0;
-    return true;
-  });
+  var vis = filas.filter(enFiltro);
   vis.sort(cmp);
   var totB = 0, totU = 0, provSet = {};
   vis.forEach(function (r) { if (r.bFin > 0) { totB += r.bFin; totU += r.bFin * r.it.f; provSet[r.it.p] = 1; } });
@@ -263,6 +261,22 @@ function redondear(b, cam, pal, urgente) {
   return r;
 }
 function palTxt(it) { return it.cam || it.pal ? (it.cam || '—') + ' / ' + (it.pal || '—') : '—'; }
+
+function enFiltro(r) {
+  if (filtro === 'falta') return r.est === 'falta';
+  if (filtro === 'crit') return r.est === 'crit';
+  if (filtro === 'pedir') return r.bFin > 0;
+  return true;
+}
+function pintarProvs(provCnt, fp) {
+  var pk = Object.keys(provCnt).sort(function (a, b) { return (D.proveedores[a] || a).localeCompare(D.proveedores[b] || b); });
+  var tot = pk.reduce(function (s, k) { return s + provCnt[k]; }, 0);
+  var sel = document.getElementById('fprov');
+  sel.innerHTML = '<option value="">Todos (' + F0(tot) + ')</option>' + pk.map(function (k) {
+    return '<option value="' + k + '">' + esc(D.proveedores[k] || k) + ' (' + F0(provCnt[k]) + ')</option>';
+  }).join('');
+  sel.value = fp;
+}
 
 function al(k, n, t, s) { return '<div class="al ' + k + (filtro === k ? ' on' : '') + '" onclick="setFiltro(\'' + k + '\')"><b>' + F0(n) + '</b>' + t + '<div style="font-size:12px;opacity:.8">' + s + '</div></div>'; }
 function setFiltro(k) { filtro = k; calcular(); }
