@@ -9,6 +9,7 @@ Lee la replica BI de Gescom (Postgres) y vuelca:
 El calculo del pedido (promedio, cobertura, sugerido) se hace en el navegador,
 asi la ventana del promedio y los dias a reponer se cambian en vivo.
 """
+import csv
 import json
 import os
 from collections import defaultdict
@@ -32,6 +33,24 @@ def conectar():
         password=os.environ.get("PGPASSWORD") or None,  # sin variable, usa pgpass.conf
         connect_timeout=30,
     )
+
+
+def leer_paletizado():
+    """paletizado.csv (codigo;descripcion;bultos_por_camada;bultos_por_pallet), editable a mano."""
+    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paletizado.csv")
+    pal = {}
+    if not os.path.exists(ruta):
+        return pal
+    with open(ruta, encoding="utf-8-sig", newline="") as fh:
+        for r in csv.DictReader(fh, delimiter=";"):
+            cod = (r.get("codigo") or "").strip()
+            cam = (r.get("bultos_por_camada") or "").strip()
+            pall = (r.get("bultos_por_pallet") or "").strip()
+            cam = int(float(cam.replace(",", "."))) if cam else 0
+            pall = int(float(pall.replace(",", "."))) if pall else 0
+            if cod and (cam > 0 or pall > 0):
+                pal[cod] = (cam, pall)
+    return pal
 
 
 def main():
@@ -112,6 +131,7 @@ def main():
     )
     ult_compra = {iid: f.isoformat() for iid, f in cur.fetchall() if f}
 
+    paletizado = leer_paletizado()
     codigos_con_stock = set(stock)
     salida_items = []
     for iid, it in items.items():
@@ -123,6 +143,8 @@ def main():
         it["s"] = stock.get(it["c"], {})
         it["uc"] = ult_compra.get(iid)
         it["v"] = ventas.get(it["c"], {})
+        if it["c"] in paletizado:
+            it["cam"], it["pal"] = paletizado[it["c"]]
         salida_items.append(it)
     salida_items.sort(key=lambda x: (x["p"], x["d"]))
 

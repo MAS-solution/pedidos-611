@@ -84,6 +84,7 @@ details summary{cursor:pointer;color:var(--ac);font-size:13px}
       <div class="ctrl" id="c-rango" hidden><label>Desde / hasta</label><input type="date" id="rdesde"> <input type="date" id="rhasta"></div>
       <div class="ctrl" id="c-anio" hidden><label>Próximos días a proyectar · ajuste %</label><input type="number" id="adias" min="1" value="30"> <input type="number" id="acrec" value="0" step="1">%</div>
       <div class="ctrl"><label>Días a reponer (cobertura)</label><input type="number" id="repo" min="0" value="15"></div>
+      <div class="ctrl"><label>Redondeo camada / pallet</label><span class="chk"><input type="checkbox" id="redo" checked>Activo</span> <span class="mut">completar pallet si falta ≤</span> <input type="number" id="tolpal" min="0" max="50" value="10" style="width:56px">%</div>
       <div class="ctrl"><label>Stock de depósitos</label><span id="deps"></span></div>
     </div>
     <details style="margin-top:12px"><summary>Demora de entrega por proveedor (días)</summary><div class="provs" id="provs"></div></details>
@@ -102,7 +103,7 @@ details summary{cursor:pointer;color:var(--ac);font-size:13px}
     <div class="res" id="res"></div>
     <div class="tw"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
   </div>
-  <p class="mut">Venta neta = facturas − notas de crédito (en unidades). El promedio es por día corrido. Sugerido = promedio × (demora + días a reponer) − stock, redondeado a bultos de compra. Los días sin stock bajan el promedio (venta perdida), revisá los artículos que estuvieron en falta.</p>
+  <p class="mut">Venta neta = facturas − notas de crédito (en unidades). El promedio es por día corrido. Sugerido = promedio × (demora + días a reponer) − stock, redondeado a bultos de compra y, si el artículo tiene camada/pallet cargado en paletizado.csv, a la camada más cercana (completando pallet si falta poco). Entre paréntesis, el sugerido sin redondeo. Los días sin stock bajan el promedio (venta perdida), revisá los artículos que estuvieron en falta.</p>
 </main>
 </div>
 
@@ -122,7 +123,7 @@ if (authed) entrar(); else document.getElementById('login').hidden = false;
 
 var D, DESDE, HASTA, NH, filtro = 'todo', orden = { k: 'cob', asc: true }, OV = ls(OV_KEY) || {};
 var DEMORA_DEF = { '100': 5 }, DEMORA_OTROS = 10;
-var CFG = Object.assign({ modo: '30', ndias: 21, repo: 15, adias: 30, acrec: 0, deps: ['0', '5'], demoras: {} }, ls(CFG_KEY) || {});
+var CFG = Object.assign({ modo: '30', ndias: 21, repo: 15, adias: 30, acrec: 0, redo: true, tolpal: 10, deps: ['0', '5'], demoras: {} }, ls(CFG_KEY) || {});
 
 function F0(n) { return (Math.round(n) || 0).toLocaleString('es-AR'); }
 function F1(n) { return (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
@@ -144,6 +145,7 @@ function init(d) {
   document.getElementById('meta').textContent = 'Datos al ' + d.generado + ' · historial de venta ' + fmtF(d.desde) + ' → ' + fmtF(d.hasta);
   var $ = function (id) { return document.getElementById(id); };
   $('modo').value = CFG.modo; $('ndias').value = CFG.ndias; $('repo').value = CFG.repo; $('adias').value = CFG.adias; $('acrec').value = CFG.acrec;
+  $('redo').checked = CFG.redo; $('tolpal').value = CFG.tolpal;
   $('rdesde').value = CFG.rdesde || d.desde; $('rhasta').value = CFG.rhasta || d.hasta;
   $('rdesde').min = $('rhasta').min = d.desde; $('rdesde').max = $('rhasta').max = d.hasta;
   // Depositos
@@ -170,6 +172,7 @@ function guardarYCalcular() {
   var $ = function (id) { return document.getElementById(id); };
   CFG.modo = $('modo').value; CFG.ndias = +$('ndias').value || 1; CFG.repo = +$('repo').value || 0;
   CFG.adias = +$('adias').value || 1; CFG.acrec = +$('acrec').value || 0;
+  CFG.redo = $('redo').checked; CFG.tolpal = Math.max(0, +$('tolpal').value || 0);
   CFG.rdesde = $('rdesde').value; CFG.rhasta = $('rhasta').value; CFG.fprov = $('fprov').value;
   CFG.deps = [].map.call(document.querySelectorAll('#deps input:checked'), function (e) { return e.value; });
   document.querySelectorAll('#provs input').forEach(function (e) { CFG.demoras[e.dataset.p] = +e.value || 0; });
@@ -220,11 +223,12 @@ function calcular() {
     var stc = Math.max(st, 0), lead = demora(it.p);
     var cob = prom > 0 ? stc / prom : Infinity;
     var nec = prom * (lead + CFG.repo) - stc;
-    var bSug = nec > 0 ? Math.ceil(nec / it.f) : 0;
-    var est = prom > 0 && stc <= 0 ? 'falta' : (prom > 0 && cob < lead ? 'crit' : (bSug > 0 ? 'pedir' : 'ok'));
+    var bRaw = nec > 0 ? Math.ceil(nec / it.f) : 0;
+    var est = prom > 0 && stc <= 0 ? 'falta' : (prom > 0 && cob < lead ? 'crit' : (bRaw > 0 ? 'pedir' : 'ok'));
+    var bSug = CFG.redo ? redondear(bRaw, it.cam || 0, it.pal || 0, est === 'falta' || est === 'crit') : bRaw;
     if (prom <= 0 && stc <= 0) return; // sin venta ni stock: no aporta
     var key = it.c, bFin = OV[key] != null ? OV[key] : bSug;
-    var r = { it: it, prom: prom, st: st, cob: cob, lead: lead, bSug: bSug, bFin: bFin, est: est, vt: tot };
+    var r = { it: it, prom: prom, st: st, cob: cob, lead: lead, bRaw: bRaw, bSug: bSug, bFin: bFin, est: est, vt: tot };
     if (fp && it.p !== fp) return;
     if (q && (it.c + ' ' + it.d).toLowerCase().indexOf(q) < 0) return;
     cnt.todo++; if (est === 'falta') cnt.falta++; if (est === 'crit') cnt.crit++; if (bFin > 0) cnt.pedir++;
@@ -249,19 +253,31 @@ function calcular() {
   window._vis = vis;
 }
 
+// Camada: al multiplo mas cercano (7 con camada 5 -> 5, 8 -> 10); si queda en 0 y el articulo
+// esta en falta o critico, una camada. Pallet: si al multiplo de pallet le falta <= tolpal%, se completa.
+function redondear(b, cam, pal, urgente) {
+  if (b <= 0) return 0;
+  var r = b;
+  if (cam > 0) { r = Math.round(r / cam) * cam; if (r === 0 && urgente) r = cam; }
+  if (pal > 0 && r > 0) { var resto = r % pal; if (resto && pal - resto <= pal * CFG.tolpal / 100) r += pal - resto; }
+  return r;
+}
+function palTxt(it) { return it.cam || it.pal ? (it.cam || '—') + ' / ' + (it.pal || '—') : '—'; }
+
 function al(k, n, t, s) { return '<div class="al ' + k + (filtro === k ? ' on' : '') + '" onclick="setFiltro(\'' + k + '\')"><b>' + F0(n) + '</b>' + t + '<div style="font-size:12px;opacity:.8">' + s + '</div></div>'; }
 function setFiltro(k) { filtro = k; calcular(); }
 
 var COLS = [
   ['est', 'Estado', 'l'], ['c', 'Código', 'l'], ['d', 'Descripción', 'l'], ['p', 'Proveedor', 'l'],
   ['st', 'Stock (u)'], ['prom', 'Venta/día (u)'], ['cob', 'Cobertura (días)'], ['lead', 'Demora'],
-  ['f', 'Bulto'], ['bSug', 'Sugerido (bultos)'], ['bFin', 'Pedir (bultos)'], ['uFin', 'Pedir (u)'], ['uc', 'Últ. compra']
+  ['f', 'Bulto'], ['cam', 'Camada / pallet'], ['bSug', 'Sugerido (bultos)'], ['bFin', 'Pedir (bultos)'], ['uFin', 'Pedir (u)'], ['uc', 'Últ. compra']
 ];
 var EORD = { falta: 0, crit: 1, pedir: 2, ok: 3 };
 function val(r, k) {
   switch (k) {
     case 'est': return EORD[r.est] * 1e6 + (isFinite(r.cob) ? r.cob : 1e5);
     case 'c': case 'd': case 'f': case 'uc': return r.it[k] || '';
+    case 'cam': return r.it.cam || r.it.pal || 0;
     case 'p': return D.proveedores[r.it.p] || '';
     case 'cob': return isFinite(r.cob) ? r.cob : 1e9;
     case 'uFin': return r.bFin * r.it.f;
@@ -281,10 +297,10 @@ function pintar(vis) {
     return '<tr><td class="l"><span class="tag ' + e[0] + '">' + e[1] + '</span></td><td class="l">' + esc(it.c) + '</td><td class="l desc">' + esc(it.d) +
       '</td><td class="l">' + esc(D.proveedores[it.p] || it.p) + '</td><td>' + F0(r.st) + '</td><td>' + F1(r.prom) +
       '</td><td>' + (isFinite(r.cob) ? F1(r.cob) : '—') + '</td><td>' + r.lead + '</td><td>' + esc(it.u) + ' x' + it.f +
-      '</td><td>' + F0(r.bSug) + '</td><td><input type="number" min="0" class="' + (ov ? 'ov' : '') + '" value="' + r.bFin + '" onchange="setOV(\'' + esc(it.c) + '\',this.value,' + r.bSug + ')"></td><td>' + F0(r.bFin * it.f) +
+      '</td><td>' + palTxt(it) + '</td><td>' + F0(r.bSug) + (r.bSug !== r.bRaw ? ' <span class="mut" title="Sin redondeo">(' + F0(r.bRaw) + ')</span>' : '') + '</td><td><input type="number" min="0" class="' + (ov ? 'ov' : '') + '" value="' + r.bFin + '" onchange="setOV(\'' + esc(it.c) + '\',this.value,' + r.bSug + ')"></td><td>' + F0(r.bFin * it.f) +
       '</td><td>' + (it.uc ? fmtF(it.uc) : '—') + '</td></tr>';
   }).join('');
-  document.getElementById('tbody').innerHTML = h || '<tr><td colspan="13" class="l mut">Sin artículos para este filtro.</td></tr>';
+  document.getElementById('tbody').innerHTML = h || '<tr><td colspan="14" class="l mut">Sin artículos para este filtro.</td></tr>';
 }
 function setOV(c, v, sug) { v = Math.max(0, Math.round(+v || 0)); if (v === sug) delete OV[c]; else OV[c] = v; ls(OV_KEY, OV); calcular(); }
 function limpiarAjustes() { OV = {}; ls(OV_KEY, OV); calcular(); }
@@ -295,12 +311,12 @@ function exportar() {
   var wb = XLSX.utils.book_new(), porProv = {};
   rows.forEach(function (r) { (porProv[r.it.p] = porProv[r.it.p] || []).push(r); });
   Object.keys(porProv).forEach(function (p) {
-    var aoa = [['Código', 'Descripción', 'Unidad compra', 'Factor', 'Bultos', 'Unidades', 'Stock (u)', 'Venta/día (u)', 'Cobertura (días)', 'Estado']];
+    var aoa = [['Código', 'Descripción', 'Unidad compra', 'Factor', 'Bultos', 'Unidades', 'Bultos x camada', 'Bultos x pallet', 'Pallets', 'Stock (u)', 'Venta/día (u)', 'Cobertura (días)', 'Estado']];
     porProv[p].sort(function (a, b) { return a.it.d.localeCompare(b.it.d); }).forEach(function (r) {
-      aoa.push([r.it.c, r.it.d, r.it.u, r.it.f, r.bFin, r.bFin * r.it.f, Math.round(r.st), +r.prom.toFixed(1), isFinite(r.cob) ? +r.cob.toFixed(1) : '', ETQ[r.est][1]]);
+      aoa.push([r.it.c, r.it.d, r.it.u, r.it.f, r.bFin, r.bFin * r.it.f, r.it.cam || '', r.it.pal || '', r.it.pal ? +(r.bFin / r.it.pal).toFixed(2) : '', Math.round(r.st), +r.prom.toFixed(1), isFinite(r.cob) ? +r.cob.toFixed(1) : '', ETQ[r.est][1]]);
     });
     var ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 7 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 45 }, { wch: 12 }, { wch: 7 }, { wch: 8 }, { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws, (D.proveedores[p] || p).replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 31));
   });
   XLSX.writeFile(wb, 'Pedido 611 ' + iso(new Date()) + '.xlsx');
